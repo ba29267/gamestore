@@ -1,0 +1,75 @@
+# Alert rules for GameStore Backend
+
+groups:
+  - name: gamestore-alerts
+    interval: 30s
+    rules:
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: (rate(http_requests_total{status_code=~"5.."}[5m]) / rate(http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected (>5%)"
+          description: "Service {{ $labels.job }} has error rate of {{ $value | humanizePercentage }}"
+
+      # High Latency
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency detected (P95 > 1s)"
+          description: "Service {{ $labels.job }} has P95 latency of {{ $value }}s"
+
+      # Service Down
+      - alert: ServiceDown
+        expr: up{job=~"auth-service|game-service|orders-service|reviews-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service is down"
+          description: "Service {{ $labels.job }} is unreachable"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes / 1024 / 1024) > 200
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Service {{ $labels.job }} using {{ $value | humanize }}MB"
+
+      # High Request Rate
+      - alert: HighRequestRate
+        expr: rate(http_requests_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "High request rate"
+          description: "Service {{ $labels.job }} receiving {{ $value | humanize }} req/s"
+
+      # Cache Effectiveness Low
+      - alert: LowCacheHitRate
+        expr: (rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))) < 0.3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}"
+
+      # Database Query Latency High
+      - alert: HighDatabaseLatency
+        expr: histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database query latency"
+          description: "P95 database latency is {{ $value }}s"

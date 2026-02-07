@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: solr-pvc
+  namespace: gamestore
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: solr
+  namespace: gamestore
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: solr
+  template:
+    metadata:
+      labels:
+        app: solr
+    spec:
+      containers:
+        - name: solr
+          image: solr:9-slim
+          ports:
+            - containerPort: 8983
+              name: solr
+          env:
+            - name: SOLR_OPTS
+              value: "-Dsolr.autoSoftCommit.maxTime=1000"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /solr/admin/ping
+              port: 8983
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /solr/admin/ping
+              port: 8983
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - name: solr-storage
+              mountPath: /var/solr
+      volumes:
+        - name: solr-storage
+          persistentVolumeClaim:
+            claimName: solr-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: solr
+  namespace: gamestore
+spec:
+  ports:
+    - port: 8983
+      targetPort: 8983
+      name: solr
+  selector:
+    app: solr
+  type: ClusterIP

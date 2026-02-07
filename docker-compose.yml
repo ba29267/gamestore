@@ -1,0 +1,297 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: gamestore-postgres
+    environment:
+      POSTGRES_USER: gamestore_user
+      POSTGRES_PASSWORD: gamestore_password
+      POSTGRES_DB: gamestore_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - gamestore-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gamestore_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Apache Solr
+  solr:
+    image: solr:9
+    container_name: gamestore-solr
+    ports:
+      - "8983:8983"
+    volumes:
+      - solr_data:/var/solr
+      - ./docker/solr-init.sh:/docker-entrypoint-initdb.d/solr-init.sh
+    networks:
+      - gamestore-network
+    environment:
+      - SOLR_OPTS=-Dsolr.autoSoftCommit.maxTime=1000
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8983/solr/admin/ping || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 120s
+    command: solr -c -f
+
+  # Redis Cache
+  redis:
+    image: redis:7
+    container_name: gamestore-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - gamestore-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: gamestore-auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: auth-service
+      LOG_LEVEL: info
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      DB_HOST: postgres
+      DB_USER: gamestore_user
+      DB_PASSWORD: gamestore_password
+      DB_NAME: gamestore_db
+      DB_PORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - gamestore-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Game Service
+  game-service:
+    build:
+      context: ./services/game-service
+      dockerfile: Dockerfile
+    container_name: gamestore-game-service
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: game-service
+      LOG_LEVEL: info
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      DB_HOST: postgres
+      DB_USER: gamestore_user
+      DB_PASSWORD: gamestore_password
+      DB_NAME: gamestore_db
+      DB_PORT: 5432
+      SOLR_HOST: solr
+      SOLR_PORT: 8983
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      solr:
+        condition: service_started
+    networks:
+      - gamestore-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Orders Service
+  orders-service:
+    build:
+      context: ./services/orders-service
+      dockerfile: Dockerfile
+    container_name: gamestore-orders-service
+    ports:
+      - "3003:3003"
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: orders-service
+      LOG_LEVEL: info
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      DB_HOST: postgres
+      DB_USER: gamestore_user
+      DB_PASSWORD: gamestore_password
+      DB_NAME: gamestore_db
+      DB_PORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - gamestore-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Reviews Service
+  reviews-service:
+    build:
+      context: ./services/reviews-service
+      dockerfile: Dockerfile
+    container_name: gamestore-reviews-service
+    ports:
+      - "3004:3004"
+    environment:
+      NODE_ENV: development
+      SERVICE_NAME: reviews-service
+      LOG_LEVEL: info
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      DB_HOST: postgres
+      DB_USER: gamestore_user
+      DB_PASSWORD: gamestore_password
+      DB_NAME: gamestore_db
+      DB_PORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - gamestore-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nginx API Gateway
+  api-gateway:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: gamestore-api-gateway
+    ports:
+      - "80:80"
+    depends_on:
+      - auth-service
+      - game-service
+      - orders-service
+      - reviews-service
+    networks:
+      - gamestore-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # MONITORING - PROMETHEUS
+  # ============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gamestore-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - gamestore-network
+    depends_on:
+      - auth-service
+      - game-service
+      - orders-service
+      - reviews-service
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # FRONTEND - REACT APP
+  # ============================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: gamestore-frontend
+    ports:
+      - "8000:3000"
+    environment:
+      REACT_APP_API_BASE_URL: http://auth-service:3001
+      REACT_APP_GAME_SERVICE_URL: http://game-service:3002
+      REACT_APP_ORDERS_SERVICE_URL: http://orders-service:3003
+      REACT_APP_REVIEWS_SERVICE_URL: http://reviews-service:3004
+    depends_on:
+      - auth-service
+      - game-service
+      - orders-service
+      - reviews-service
+    networks:
+      - gamestore-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # MONITORING - GRAFANA
+  # ============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: gamestore-grafana
+    ports:
+      - "3005:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+      GF_INSTALL_PLUGINS: grafana-worldmap-panel,grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+    networks:
+      - gamestore-network
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  solr_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  gamestore-network:
+    driver: bridge

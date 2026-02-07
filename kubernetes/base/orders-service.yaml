@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-service
+  namespace: gamestore
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: orders-service
+  template:
+    metadata:
+      labels:
+        app: orders-service
+    spec:
+      imagePullSecrets:
+        - name: docker-registry
+      containers:
+        - name: orders-service
+          image: gamestore-orders-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3003
+              name: http
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: gamestore-config
+                  key: NODE_ENV
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: gamestore-config
+                  key: LOG_LEVEL
+            - name: PORT
+              value: "3003"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gamestore-secrets
+                  key: JWT_SECRET
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: gamestore-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: gamestore-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: gamestore-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: gamestore-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gamestore-secrets
+                  key: DB_PASSWORD
+            - name: GAME_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: gamestore-config
+                  key: GAME_SERVICE_URL
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-service
+  namespace: gamestore
+  labels:
+    app: orders-service
+spec:
+  ports:
+    - port: 3003
+      targetPort: 3003
+      protocol: TCP
+      name: http
+    - port: 9090
+      targetPort: 9090
+      protocol: TCP
+      name: metrics
+  selector:
+    app: orders-service
+  type: ClusterIP
