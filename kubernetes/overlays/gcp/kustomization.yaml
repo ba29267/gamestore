@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: gamestore
+
+bases:
+  - ../../base
+
+# Replace local image references with GCP Artifact Registry references
+images:
+  - name: gamestore-auth-service:latest
+    newName: us-central1-docker.pkg.dev/gamestore-backend-486713/gamestore-repo/gamestore-auth-service
+    newTag: latest
+  - name: gamestore-game-service:latest
+    newName: us-central1-docker.pkg.dev/gamestore-backend-486713/gamestore-repo/gamestore-game-service
+    newTag: latest
+  - name: gamestore-orders-service:latest
+    newName: us-central1-docker.pkg.dev/gamestore-backend-486713/gamestore-repo/gamestore-orders-service
+    newTag: latest
+  - name: gamestore-reviews-service:latest
+    newName: us-central1-docker.pkg.dev/gamestore-backend-486713/gamestore-repo/gamestore-reviews-service
+    newTag: latest
+  - name: gamestore-frontend:latest
+    newName: us-central1-docker.pkg.dev/gamestore-backend-486713/gamestore-repo/gamestore-frontend
+    newTag: latest
+
+# Patch all Deployments to use IfNotPresent instead of Never
+# (Never only works for local Docker/Minikube, not for GCP)
+patches:
+  - target:
+      kind: Deployment
+      version: v1
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+

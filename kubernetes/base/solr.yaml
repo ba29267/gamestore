@@ -1,4 +1,4 @@
-apiVersion: v1
+﻿apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: solr-pvc
@@ -25,6 +25,11 @@ spec:
       labels:
         app: solr
     spec:
+      securityContext:
+        fsGroup: 8983
+        runAsUser: 8983
+        runAsGroup: 8983
+        runAsNonRoot: true
       containers:
         - name: solr
           image: solr:9-slim
