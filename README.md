@@ -2,7 +2,7 @@
 
 A production-ready microservices application demonstrating enterprise architecture patterns with REST/GraphQL APIs, authentication, full-text search, container orchestration, and observability.
 
-**Status**: ✅ Complete - Docker Compose & Kubernetes Ready
+**Status**: ✅ Prototype - Docker Compose & Kubernetes Ready
 
 ---
 
@@ -130,7 +130,10 @@ gamestore/
 **Prerequisites**:
 
 - Docker & Docker Compose
-- 4GB RAM, 2GB disk space
+- **6GB+ RAM** (minimum), 10GB disk space
+- Node.js 16+, npm 8+
+
+⚠️ **Important**: With 4GB RAM, containers will crash frequently due to memory contention. Minimum 6GB recommended. See [Resource Requirements](#resource-requirements-by-setup) below.
 
 **Start the application**:
 
@@ -178,6 +181,135 @@ docker-compose down
 
 # Stop and remove all data
 docker-compose down -v
+```
+
+---
+
+## Resource Requirements by Setup
+
+### System Requirements
+
+| Setup                    | Minimum RAM      | Recommended RAM | CPU Cores | Disk Space |
+| ------------------------ | ---------------- | --------------- | --------- | ---------- |
+| **Docker Compose**       | 6GB              | 8GB             | 4+        | 10GB       |
+| **Kubernetes (Dev)**     | 6GB              | 8GB             | 4+        | 15GB       |
+| **Kubernetes (Staging)** | 12GB             | 16GB            | 8+        | 30GB       |
+| **Kubernetes (Prod)**    | 16GB+ (per node) | 32GB            | 16+       | 100GB+     |
+
+### Why 6GB Minimum for Docker Compose?
+
+**Memory Breakdown** (~2.5GB container usage):
+
+- PostgreSQL: 256 MB
+- Apache Solr: 512 MB (Java heap)
+- Redis: 100 MB
+- 4 Microservices (Auth, Games, Orders, Reviews): 600 MB total
+- Frontend: 100 MB
+- Nginx: 64 MB
+- Prometheus: 256 MB
+- Grafana: 200 MB
+
+**System Overhead** (~2.5GB):
+
+- Docker daemon: 300-500 MB
+- Host OS: 1.5-2 GB
+- Kubernetes kubelet (if applicable): 300-500 MB
+
+**Total: ~5GB minimum, 6GB recommended for stability**
+
+### If You Have 4GB RAM
+
+Option 1: **Use Docker Compose without monitoring** (saves ~450 MB)
+
+```bash
+docker-compose up -d --profile=core
+# Disables: prometheus, grafana
+```
+
+Option 2: **Use Kubernetes with reduced services**
+
+- Comment out monitoring in `kubernetes/base/kustomization.yaml`
+- Reduce Solr heap to 256MB
+- Use only 1 replica per service
+
+Option 3: **Upgrade to at least 6GB RAM** (strongly recommended)
+
+---
+
+## Kubernetes Deployment
+
+Deploy to any Kubernetes cluster (local, GKE, EKS, AKS, etc.)
+
+### Prerequisites
+
+- Kubernetes cluster (1.20+)
+- kubectl configured
+- Docker images built and available
+- **6GB+ RAM (Dev)**, 12GB+ (Staging), 16GB+ per node (Prod)
+
+### Local Kubernetes (Minikube / Docker Desktop)
+
+**Enable Kubernetes**:
+
+```bash
+# Docker Desktop: Settings → Kubernetes → Enable Kubernetes
+# Minikube: minikube start --memory=6000
+```
+
+**Build and load Docker images**:
+
+```bash
+# Build all service images
+docker-compose build
+
+# Load into Minikube (if using Minikube)
+minikube image load gamestore-auth-service:latest
+minikube image load gamestore-game-service:latest
+minikube image load gamestore-orders-service:latest
+minikube image load gamestore-reviews-service:latest
+minikube image load gamestore-frontend:latest
+minikube image load gamestore-api-gateway:latest
+```
+
+**Deploy to Kubernetes**:
+
+```bash
+# Deploy development environment (recommended for local)
+kubectl apply -k kubernetes/overlays/development
+
+# Or deploy staging for higher resources
+kubectl apply -k kubernetes/overlays/staging
+
+# Verify deployment
+kubectl get all -n gamestore-dev
+
+# Watch pods startup
+kubectl get pods -n gamestore-dev --watch
+```
+
+### Environment-Specific Deployments
+
+See [kubernetes/ARCHITECTURE.md](kubernetes/ARCHITECTURE.md) for complete environment isolation strategy.
+
+**Development** (Local machine, 6GB RAM):
+
+```bash
+kubectl apply -k kubernetes/overlays/development
+# 1 replica per service, 8Gi memory quota, no HPA
+```
+
+**Staging** (Test environment, 12GB RAM):
+
+```bash
+kubectl apply -k kubernetes/overlays/staging
+# 2-3 replicas per service, 16Gi memory quota, HPA enabled (1-3)
+```
+
+**Production** (Cloud, 16GB+ per node):
+
+```bash
+kubectl apply -k kubernetes/overlays/production
+# 4+ replicas per service, unlimited resources, HPA (1-10+)
 ```
 
 ---

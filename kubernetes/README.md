@@ -2,6 +2,19 @@
 
 This directory contains Kubernetes manifests for deploying GameStore to any Kubernetes cluster (local, GKE, EKS, AKS, or self-managed).
 
+**📖 For detailed architecture information, see [ARCHITECTURE.md](ARCHITECTURE.md)**
+
+**📊 For component diagrams and relationships, see [COMPONENT-DIAGRAM.md](COMPONENT-DIAGRAM.md)**
+
+## Quick Navigation
+
+- [Architecture Overview](ARCHITECTURE.md) - 2-page architecture summary + design patterns
+- [Component Diagram](COMPONENT-DIAGRAM.md) - Visual all components & relationships
+- [Quick Start - Local Development](#quick-start---local-development)
+- [Environment-Specific Deployment](#environment-specific-deployment)
+- [Rebuilding After Code Changes](#rebuilding-after-code-changes)
+- [Troubleshooting](#troubleshooting)
+
 ## Directory Structure
 
 ```
@@ -39,8 +52,10 @@ kubernetes/
 
 - kubectl 1.20+
 - Docker (with Kubernetes enabled) or Minikube
-- 6GB+ RAM, 20GB+ disk space
+- **6GB+ RAM** (minimum for all containers), 20GB+ disk space
 - Node.js 18+, npm
+
+⚠️ **Important**: 4GB RAM will cause frequent container crashes. Minimum 6GB strongly recommended. See [ARCHITECTURE.md - Resource Considerations](ARCHITECTURE.md#resource-considerations-for-local-development-4gb-vs-6gb).
 
 ### 2. Local Workflow: Build → Load → Deploy
 
@@ -143,6 +158,87 @@ kubectl apply -k kubernetes/base
 ```
 
 See [GOOGLE_CLOUD_DEPLOYMENT.md](GOOGLE_CLOUD_DEPLOYMENT.md) for detailed instructions.
+
+---
+
+## Environment-Specific Deployment
+
+GameStore supports three isolated deployment environments with different resource configurations and capabilities. See [ARCHITECTURE.md](ARCHITECTURE.md#environment-isolation-strategy) for complete details.
+
+### Development Environment (`gamestore-dev`)
+
+**Use this for local development and debugging**
+
+```bash
+# Deploy development environment
+kubectl apply -k kubernetes/overlays/development
+
+# Get dev namespace
+kubectl get all -n gamestore-dev
+
+# View logs
+kubectl logs -f deployment/game-service -n gamestore-dev
+```
+
+**Characteristics:**
+
+- 1 replica per microservice (minimal memory usage)
+- 8Gi total memory quota
+- No Horizontal Pod Autoscaler (manual scaling)
+- Runs on local images from Docker
+- Requires: **6GB+ host RAM**
+- Estimated container memory: ~2.5GB
+- Best for: Active development, fast iteration, debugging
+
+### Staging Environment (`gamestore-staging`)
+
+**Use this for pre-production testing and release validation**
+
+```bash
+# Deploy staging environment
+kubectl apply -k kubernetes/overlays/staging
+
+# Get staging namespace
+kubectl get all -n gamestore-staging
+
+# Check HPA status
+kubectl get hpa -n gamestore-staging
+```
+
+**Characteristics:**
+
+- 2-3 replicas per microservice
+- 16Gi total memory quota
+- Horizontal Pod Autoscaler enabled (scales 1-3 replicas based on CPU/Memory)
+- Ingress enabled for external access
+- Requires: **12GB+ host RAM**
+- Best for: QA testing, performance validation, release candidate testing
+
+### Production Environment (`gamestore-prod`)
+
+**Use this for live traffic and critical applications**
+
+```bash
+# Deploy production environment
+kubectl apply -k kubernetes/overlays/production
+
+# Check resources
+kubectl get all -n gamestore-prod
+
+# Check auto-scaling
+kubectl get hpa -n gamestore-prod
+kubectl describe hpa game-service-hpa -n gamestore-prod
+```
+
+**Characteristics:**
+
+- 4+ replicas per microservice for high availability
+- **Unlimited resources** (no hard quota limits)
+- Aggressive Horizontal Pod Autoscaler (scales 1-10+ replicas)
+- Vertical Pod Autoscaler for performance optimization
+- Distributed across multiple nodes
+- Requires: **16GB+ RAM per node** (typically 3+ nodes)
+- Best for: Production traffic, reliability, scaling
 
 ---
 
@@ -506,6 +602,90 @@ kubectl get pod postgres-0 -n gamestore
 
 # Test connection from another pod
 kubectl exec -it <pod-name> -n gamestore -- psql -h postgres -U gamestore_user -d gamestore_db
+```
+
+### Out of Memory: Containers Crashing / OOMKilled
+
+**Symptoms:**
+
+- Pods crash frequently with `OOMKilled` status
+- `kubectl describe pod` shows `MemoryExceeded`
+- Services keep restarting
+
+**Causes:**
+
+- Host RAM less than 6GB
+- Too many containers running (typical with 4GB RAM)
+- Memory leaks in application code
+- Insufficient Kubernetes system resources
+
+**Solutions:**
+
+1. **Upgrade your system to 6GB+ RAM** (recommended)
+
+   ```
+   Current: 4GB → Target: 6GB-8GB
+   Total memory: OS (1.5GB) + Docker (300-500MB) + Containers (2.5GB) = ~5GB
+   Buffer needed: 1GB
+   ```
+
+2. **Use Docker Compose instead of Kubernetes** (lighter footprint)
+
+   ```bash
+   # Docker Compose uses less system overhead than Kubernetes
+   docker-compose up -d
+   ```
+
+3. **Disable non-essential services** to free memory
+
+   ```bash
+   # Edit kubernetes/base/kustomization.yaml and remove:
+   # - monitoring.yaml  (saves 450+ MB)
+
+   # Rebuild
+   kubectl apply -k kubernetes/overlays/development
+   ```
+
+4. **Reduce memory limits and requests**
+
+   ```bash
+   # Create kubernetes/overlays/minimal/deployment-patch.yaml
+   patches:
+     - target:
+         kind: Deployment
+       patch: |-
+         - op: replace
+           path: /spec/template/spec/containers/0/resources/requests/memory
+           value: "64Mi"
+         - op: replace
+           path: /spec/template/spec/containers/0/resources/limits/memory
+           value: "128Mi"
+   ```
+
+5. **Reduce Solr Java heap** (saves 256+ MB)
+
+   ```bash
+   # Edit kubernetes/base/solr.yaml
+   # Change: -Xmx512m → -Xmx256m
+   ```
+
+6. **Run only essential services** (skip Redis, Solr for MVP)
+   ```yaml
+   # Comment in kustomization.yaml:
+   # - redis.yaml
+   # - solr.yaml
+   # - monitoring.yaml
+   ```
+
+**Check actual memory usage:**
+
+```bash
+# Using Docker
+docker stats --no-stream
+
+# Using Kubernetes
+kubectl top nodes
+kubectl top pods -n gamestore-dev
 ```
 
 ---
