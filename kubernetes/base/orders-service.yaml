@@ -22,8 +22,8 @@ spec:
         - name: docker-registry
       containers:
         - name: orders-service
-          image: gamestore-orders-service:latest
-          imagePullPolicy: Never
+          image: bejtulla/gamestore-orders-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3003
               name: http

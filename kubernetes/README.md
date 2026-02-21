@@ -2,11 +2,24 @@
 
 This directory contains Kubernetes manifests for deploying GameStore to any Kubernetes cluster (local, GKE, EKS, AKS, or self-managed).
 
-**📖 For detailed architecture information, see [ARCHITECTURE.md](ARCHITECTURE.md)**
+## 🐳 Docker Hub Images
 
-**📊 For component diagrams and relationships, see [COMPONENT-DIAGRAM.md](COMPONENT-DIAGRAM.md)**
+Pre-built images available on Docker Hub:
 
-## Quick Navigation
+- `bejtulla/gamestore-auth-service:latest`
+- `bejtulla/gamestore-game-service:latest`
+- `bejtulla/gamestore-orders-service:latest`
+- `bejtulla/gamestore-reviews-service:latest`
+- `bejtulla/gamestore-frontend:latest`
+- `bejtulla/gamestore-api-gateway:latest`
+
+**YAML files automatically pull from Docker Hub** (`imagePullPolicy: Always`). No local Docker build required!
+
+See [Docker Hub Setup Guide](../DOCKER-HUB-SETUP.md) for details on building and pushing custom images.
+
+---
+
+## 📖 Documentation
 
 - [Architecture Overview](ARCHITECTURE.md) - 2-page architecture summary + design patterns
 - [Component Diagram](COMPONENT-DIAGRAM.md) - Visual all components & relationships

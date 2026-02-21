@@ -22,8 +22,8 @@ spec:
         - name: docker-registry
       containers:
         - name: reviews-service
-          image: gamestore-reviews-service:latest
-          imagePullPolicy: Never
+          image: bejtulla/gamestore-reviews-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3004
               name: http

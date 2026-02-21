@@ -314,6 +314,109 @@ kubectl apply -k kubernetes/overlays/production
 
 ---
 
+## Publishing Images to Docker Hub
+
+For easier distribution and testing, push Docker images to Docker Hub. This allows others to deploy your application without building images locally.
+
+### Prerequisites
+
+- Docker Hub account (free at https://hub.docker.com)
+- Docker installed locally
+- Logged in to Docker: `docker login`
+
+### Step 1: Build and Push Images
+
+**Windows (PowerShell)**:
+
+```powershell
+# Run the build and push script
+.\build-and-push-dockerhub.ps1 -DockerUsername "your-dockerhub-username" -PushToHub $true
+```
+
+**Linux/Mac (Bash)**:
+
+```bash
+# Make script executable
+chmod +x build-and-push-dockerhub.sh
+
+# Run the script
+./build-and-push-dockerhub.sh your-dockerhub-username latest true
+```
+
+Script automatically:
+
+- ✅ Builds all 6 service images
+- ✅ Tags with Docker Hub username
+- ✅ Pushes to Docker Hub
+- ✅ Displays push summary
+
+### Step 2: Verify on Docker Hub
+
+Visit https://hub.docker.com/u/your-dockerhub-username to see your images:
+
+- `your-dockerhub-username/gamestore-auth-service:latest`
+- `your-dockerhub-username/gamestore-game-service:latest`
+- `your-dockerhub-username/gamestore-orders-service:latest`
+- `your-dockerhub-username/gamestore-reviews-service:latest`
+- `your-dockerhub-username/gamestore-frontend:latest`
+- `your-dockerhub-username/gamestore-api-gateway:latest`
+
+### Step 3: Deploy with Published Images
+
+**YAML files already updated** with:
+
+- Image references: `bejtulla/gamestore-*:latest`
+- imagePullPolicy: `Always` (pulls from registry)
+
+To use your own images, update `kubernetes/base/*.yaml`:
+
+```yaml
+# Change all image references:
+image: bejtulla/gamestore-auth-service:latest
+# To:
+image: your-dockerhub-username/gamestore-auth-service:latest
+```
+
+### For Assignment Submission
+
+Include in your GitHub repository:
+
+1. ✅ All Kubernetes YAML files (in `kubernetes/` directory)
+2. ✅ All source code (services, frontend, nginx)
+3. ✅ Docker Compose file (for reference)
+4. ✅ README with architecture docs
+5. ✅ Images on Docker Hub (linked in README)
+
+**README should include**:
+
+````markdown
+## Docker Images
+
+Pre-built images available on Docker Hub under: `your-dockerhub-username`
+
+### Quick Start
+
+1. Clone this repository
+2. Update image references to your Docker Hub username (optional)
+3. Deploy: `kubectl apply -k kubernetes/overlays/development`
+4. Verify: `kubectl get pods -n gamestore-dev`
+5. Access: http://localhost:3000 (after port-forward)
+
+## Building Custom Images
+
+```bash
+# PowerShell
+.\build-and-push-dockerhub.ps1 -DockerUsername "your-username"
+
+# Bash
+./build-and-push-dockerhub.sh your-username latest true
+```
+````
+
+````
+
+---
+
 ## Automated Deployment Scripts
 
 One-command deployment to Kubernetes with automatic Docker builds, image loading, and port forwarding.
@@ -324,7 +427,7 @@ One-command deployment to Kubernetes with automatic Docker builds, image loading
 
 ```powershell
 .\deploy.ps1
-```
+````
 
 **Deploy to staging environment**:
 
