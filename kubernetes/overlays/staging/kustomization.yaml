@@ -1,0 +1,127 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: gamestore-staging
+
+bases:
+  - ../../base
+
+# Add namespace, quota, VPA, and HPA resources
+resources:
+  - namespace.yaml
+  - resource-quota.yaml
+  - ../../base/hpa.yaml
+
+# Patch deployments for staging: 3 replicas, increased resources
+patches:
+  # Set replicas to 3 for staging
+  - target:
+      kind: Deployment
+      name: auth-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "150m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "192Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "300m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "384Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: Deployment
+      name: game-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "250m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "320Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "500m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "640Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: Deployment
+      name: orders-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "150m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "192Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "300m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "384Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: Deployment
+      name: reviews-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "150m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "192Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "300m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "384Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "150m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "192Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "300m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "384Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent

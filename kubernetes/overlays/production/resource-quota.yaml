@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: gamestore-prod-quota
+  namespace: gamestore-prod
+spec:
+  hard:
+    # Production: higher limits, but allow flexible scaling
+    pods: "150"
+    services: "50"
+    persistentvolumeclaims: "15"
+  # Note: No CPU/Memory quota limits in production to allow all resources

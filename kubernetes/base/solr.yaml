@@ -33,6 +33,8 @@ spec:
       containers:
         - name: solr
           image: solr:9-slim
+          command: ["/bin/bash"]
+          args: ["-c", "solr start -f"]
           ports:
             - containerPort: 8983
               name: solr
@@ -50,14 +52,16 @@ spec:
             httpGet:
               path: /solr/admin/ping
               port: 8983
-            initialDelaySeconds: 30
+            initialDelaySeconds: 120
             periodSeconds: 10
+            failureThreshold: 5
           readinessProbe:
             httpGet:
               path: /solr/admin/ping
               port: 8983
-            initialDelaySeconds: 10
+            initialDelaySeconds: 60
             periodSeconds: 5
+            failureThreshold: 3
           volumeMounts:
             - name: solr-storage
               mountPath: /var/solr

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gamestore-prod
+  labels:
+    name: gamestore-prod
+    environment: production
